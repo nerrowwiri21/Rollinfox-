@@ -1,16 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
+from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-import os
-import threading
 
 app = Flask(__name__)
 CORS(app)
-
-# Global tracker for load management
-active_requests = 0
-MAX_CONCURRENT = 40 
 
 SOURCES = {
     "GitHub": "https://github.com/search?q=",
@@ -26,7 +21,7 @@ SOURCES = {
     "Snapcraft": "https://snapcraft.io/search?q=",
     "DebianPackages": "https://packages.debian.org/search?keywords=",
     "ArchPackages": "https://archlinux.org/packages/?q=",
-    "FedoraPackages": "https://packages.fedoraproject.org/search?query=",
+    "FedoraPackages": "https://apps.fedoraproject.org/packages/s/",
     "GentooPackages": "https://packages.gentoo.org/packages/search?q=",
     "NixOS": "https://search.nixos.org/packages?query=",
     "KernelOrg": "https://www.kernel.org/search/?q=",
@@ -70,39 +65,32 @@ SOURCES = {
     "RadioBrowser": "https://www.radio-browser.info/search?name="
 }
 
-def fetch_from_source(source_info, query):
-    name, base_url = source_info
+def fetch_results(source_info):
+    name, base_url, query = source_info
     url = f"{base_url}{query}"
-    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        requests.get(url, headers=headers, timeout=5)
-        return {"source": name, "status": "Success", "link": url}
-    except Exception as e:
-        return {"source": name, "status": "Failed"}
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # Sabhi links nikalne ka generic logic
+        links = [{"title": a.get_text(strip=True), "link": a['href']} for a in soup.find_all('a', href=True) if len(a.get_text(strip=True)) > 5][:5]
+        return {"source": name, "results": links}
+    except Exception:
+        return {"source": name, "results": []}
 
-@app.route('/health')
-def health():
-    global active_requests
-    return jsonify({"status": "BUSY" if active_requests >= MAX_CONCURRENT else "FREE"})
-
-@app.route('/search')
+@app.route('/search', methods=['GET'])
 def search():
-    global active_requests
-    if active_requests >= MAX_CONCURRENT:
-        return jsonify({"error": "Server Busy"}), 503
-        
     query = request.args.get('q')
     if not query:
         return jsonify({"error": "Query required"}), 400
-        
-    active_requests += 1
-    try:
-        with ThreadPoolExecutor(max_workers=15) as executor:
-            results = list(executor.map(lambda s: fetch_from_source(s, query), SOURCES.items()))
-        return jsonify({"results": results})
-    finally:
-        active_requests -= 1
+    
+    # Sources list ko prepare kar rahe hain
+    tasks = [(name, url, query) for name, url in SOURCES.items()]
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(fetch_results, tasks))
+    
+    return jsonify({"results": results})
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run()
