@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Searchwe - Open Source Engine by Rollinfox</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            margin: 0;
+            padding-top: 15vh;
+            box-sizing: border-box;
+            overflow-y: auto;
+            transition: padding 0.3s;
+        }
+        body.results-active { padding-top: 3vh; }
+        h1.logo { font-size: 42px; color: #00ffcc; margin-bottom: 25px; letter-spacing: 1px; text-align: center; transition: all 0.3s; cursor: pointer; }
+        body.results-active h1.logo { font-size: 24px; margin-bottom: 10px; }
+        .search-container { position: relative; width: 85%; max-width: 500px; margin-bottom: 30px; transition: all 0.3s; }
+        body.results-active .search-container { margin-bottom: 20px; max-width: 600px; }
+        .search-box { width: 100%; padding: 15px 50px 15px 20px; font-size: 16px; border: 2px solid #333; border-radius: 25px; background-color: #222; color: #fff; outline: none; box-sizing: border-box; transition: all 0.3s; }
+        .search-box:focus { border-color: #00ffcc; background-color: #1a1a1a; box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); }
+        .search-icon-btn { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #666; font-size: 18px; cursor: pointer; padding: 10px; border-radius: 50%; }
+        .search-box:focus + .search-icon-btn { color: #00ffcc; }
+        .btn-container { display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%; transition: opacity 0.2s; }
+        .custom-btn { width: 70%; max-width: 280px; padding: 12px; font-size: 15px; font-weight: bold; border-radius: 25px; text-align: center; text-decoration: none; cursor: pointer; border: none; transition: transform 0.1s; box-sizing: border-box; }
+        .custom-btn:active { transform: scale(0.96); }
+        .about-btn { background: linear-gradient(45deg, #ff007f, #7f00ff); color: #ffffff; box-shadow: 0 4px 15px rgba(127, 0, 255, 0.3); }
+        .coffee-btn { background-color: #FFDD00; color: #000000; box-shadow: 0 4px 15px rgba(255, 221, 0, 0.2); }
+        .results-section { display: none; width: 85%; max-width: 600px; margin-top: 10px; }
+        .result-card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; text-align: left; }
+        .result-card a { color: #00ffcc; font-size: 18px; font-weight: bold; text-decoration: none; }
+        .result-url { color: #555; font-size: 12px; margin: 4px 0; word-break: break-all; }
+        .result-desc { color: #aaa; font-size: 14px; margin: 0; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 1000; }
+        .modal-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1e1e1e; padding: 30px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; border: 1px solid #333; box-sizing: border-box; }
+        .modal-box h3 { margin-top: 0; color: #00ffcc; }
+        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 24px; color: #aaa; cursor: pointer; }
+        .donation-option { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; margin: 12px 0; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-decoration: none; box-sizing: border-box; }
+        .paypal-btn { background-color: #003087; color: white; }
+        .gpay-btn { background-color: #ffffff; color: #5f6368; border: 1px solid #ccc; }
+        .footer-text { position: fixed; bottom: 15px; font-size: 12px; color: #555; text-align: center; width: 100%; left: 0; }
+        @media (min-width: 768px) {
+            body { padding-top: 22vh; }
+            body.results-active { padding-top: 4vh; }
+            h1.logo { font-size: 56px; margin-bottom: 35px; }
+            body.results-active h1.logo { font-size: 32px; margin-bottom: 15px; }
+            .btn-container { flex-direction: row; justify-content: center; gap: 20px; }
+            .custom-btn { width: auto; min-width: 180px; font-size: 16px; padding: 14px 25px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1 class="logo" id="logoText" onclick="backToHome()">Searchwe</h1>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-box" placeholder="Search the open web..." onkeypress="handleKeyPress(event)">
+        <button class="search-icon-btn" onclick="triggerSearch()">🔍</button>
+    </div>
+
+    <div class="btn-container" id="mainButtons">
+        <a class="custom-btn about-btn" href="https://beacons.ai/rollinfox" target="_blank">🦊 About Rollinfox</a>
+        <button class="custom-btn coffee-btn" onclick="openModal()">☕ Buy me a coffee</button>
+    </div>
+
+    <div class="results-section" id="resultsArea"></div>
+
+    <p class="footer-text" id="footerBrand">Searchwe is an Open-Source Project by Rollinfox</p>
+
+    <div class="modal-overlay" id="paymentModal" onclick="closeModalOutside(event)">
+        <div class="modal-box" id="modalBox">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h3>Support Rollinfox</h3>
+            <a href="https://paypal.me/Rollinfox Gor" target="_blank" class="donation-option paypal-btn">💙 PayPal</a>
+            <a href="gormeet22@okhdfcbank" target="_blank" class="donation-option gpay-btn">💚 GPay / UPI</a>
+        </div>
+    </div>
+
+    <script>
+        // Yahan apne 10 server URLs daal dena
+        const serverPool = ["https://server1.com", "https://server2.com", "https://server3.com", "https://server4.com", "https://server5.com", "https://server6.com", "https://server7.com", "https://server8.com", "https://server9.com", "https://server10.com"];
+
+        function openModal() { document.getElementById('paymentModal').style.display = 'block'; }
+        function closeModal() { document.getElementById('paymentModal').style.display = 'none'; }
+        function closeModalOutside(event) { if (event.target == document.getElementById('paymentModal')) closeModal(); }
+
+        async function triggerSearch() {
+            var query = document.getElementById('searchInput').value;
+            if (query.trim() === "") { alert("Please enter something!"); return; }
+
+            document.body.classList.add('results-active');
+            document.getElementById('mainButtons').style.display = 'none';
+            document.getElementById('footerBrand').style.display = 'none';
+            
+            var resultsArea = document.getElementById('resultsArea');
+            resultsArea.style.display = 'block';
+            resultsArea.innerHTML = `<p style="color: #666;">Searching via Searchwe network...</p>`;
+
+            let success = false;
+            for (let url of serverPool) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    const response = await fetch(`${url}/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        renderResults(data, query);
+                        success = true;
+                        break;
+                    }
+                } catch (e) { console.log("Trying next server..."); }
+            }
+            if (!success) resultsArea.innerHTML = `<p style="color: #ff007f;">Network Busy: All servers are currently under load. Please try again.</p>`;
+        }
+
+        function renderResults(data, query) {
+            var resultsArea = document.getElementById('resultsArea');
+            resultsArea.innerHTML = `<p style="color: #666; font-size: 14px; margin-bottom: 20px;">Results for: <b style="color: #00ffcc;">${query}</b></p>`;
+            data.results.forEach(item => {
+                resultsArea.innerHTML += `
+                    <div class="result-card">
+                        <a href="${item.url}" target="_blank">${item.title}</a>
+                        <div class="result-url">${item.url}</div>
+                        <p class="result-desc">${item.desc}</p>
+                    </div>`;
+            });
+        }
+
+        function backToHome() {
+            document.body.classList.remove('results-active');
+            document.getElementById('mainButtons').style.display = 'flex';
+            document.getElementById('footerBrand').style.display = 'block';
+            document.getElementById('resultsArea').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+        }
+
+        function handleKeyPress(event) { if (event.key === "Enter") triggerSearch(); }
+    // --- COMMAND PALETTE / SHORTCUT LOGIC ---
+document.addEventListener('keydown', function(event) {
+    // Ctrl + K ya Cmd + K check karne ke liye
+    if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault(); // Browser ka default search rokne ke liye
+        const searchBox = document.getElementById('searchInput');
+        searchBox.focus(); // Cursor seedha search bar mein
+        console.log("Command Palette Triggered!");
+    }
+    
+    // Escape key se home jaane ke liye
+    if (event.key === 'Escape') {
+        backToHome();
+    }
+});
+
+    </script>
+</body>
+</html>
+
